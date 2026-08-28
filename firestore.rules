@@ -1,0 +1,7 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // El frontend no accede a Firestore: toda operación pasa por Admin SDK.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

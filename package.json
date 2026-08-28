@@ -5,9 +5,14 @@
   "description": "Sistema local de pedidos y cierres de caja para un local gastronómico",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js",
+    "seed:menu": "node --env-file=.env scripts/seed-menu.js",
+    "seed:menu:check": "node --env-file=.env scripts/seed-menu.js --dry-run",
     "test": "node --test"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0"
   },
   "engines": {
     "node": ">=22.5"

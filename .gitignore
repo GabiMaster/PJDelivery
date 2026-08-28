@@ -1,4 +1,8 @@
+secrets/
 data/
 node_modules/
 .env
+service-account*.json
+firebase-debug.log
+.firebase/
 *.log
