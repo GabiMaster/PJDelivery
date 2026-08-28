@@ -1,0 +1,15 @@
+{
+  "name": "pj-delivery",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema local de pedidos y cierres de caja para un local gastronómico",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}
