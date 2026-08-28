@@ -32,7 +32,7 @@ Sistema web para pedidos, carta, deliveries y cierres personales de caja. Usa Fi
 Para el dueño usar `"role": "admin"`. El documento debe usar exactamente el UID de Firebase Authentication.
 
 6. En **Project settings → Service accounts**, generar una clave privada y guardarla fuera del repositorio.
-7. Copiar `.env.example` como `.env` o exportar sus variables. Node no carga `.env` automáticamente; una ejecución típica es:
+7. Copiar `.env.example` como `.env` o exportar sus variables. Los scripts locales de npm cargan `.env` automáticamente; una ejecución alternativa con variables exportadas es:
 
 ```bash
 export FIREBASE_PROJECT_ID="mi-proyecto"
@@ -97,3 +97,87 @@ npm run seed:menu -- /ruta/a/carta-seed.json
 ```
 
 El primer comando solo valida. El segundo escribe en el proyecto o emulador configurado en `.env`; actualiza precio, tipo, categoría y estado, pero no elimina otros ítems existentes.
+
+## Despliegue: Firebase Hosting + Cloud Run
+
+La imagen usa Node 22, instala únicamente dependencias de producción y arranca directamente `src/server.js`. No copia `.env`, credenciales, `secrets/`, datos SQLite, tests ni dependencias locales. Cloud Run inyecta `PORT` automáticamente y el servidor conserva `3000` como fallback local.
+
+Requisitos:
+
+- Google Cloud CLI y Firebase CLI autenticados.
+- APIs de Cloud Run, Cloud Build, Artifact Registry y Firestore habilitadas.
+- Proyecto Blaze seleccionado en ambas herramientas.
+
+```bash
+gcloud auth login
+firebase login
+gcloud config set project PROJECT_ID_REAL
+firebase use --add
+
+gcloud services enable \
+  run.googleapis.com \
+  cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com \
+  firestore.googleapis.com
+```
+
+### Cuenta de servicio
+
+Se recomienda una identidad dedicada para el backend:
+
+```bash
+export PROJECT_ID="PROJECT_ID_REAL"
+export RUN_SERVICE_ACCOUNT="pj-delivery-runner@${PROJECT_ID}.iam.gserviceaccount.com"
+
+gcloud iam service-accounts create pj-delivery-runner \
+  --display-name="PJ Delivery Cloud Run"
+
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${RUN_SERVICE_ACCOUNT}" \
+  --role="roles/datastore.user"
+```
+
+`roles/datastore.user` permite leer y escribir Firestore. `verifyIdToken()` valida firmas públicas y no necesita permisos para administrar usuarios de Firebase Auth. Solo si más adelante el backend crea, elimina o modifica cuentas, agregar `roles/firebaseauth.admin`:
+
+```bash
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${RUN_SERVICE_ACCOUNT}" \
+  --role="roles/firebaseauth.admin"
+```
+
+### Publicar el backend
+
+Obtener la API key de la aplicación web desde Firebase Console → Configuración del proyecto. No es una clave privada, pero el login la necesita:
+
+```bash
+export FIREBASE_WEB_API_KEY="API_KEY_DE_FIREBASE"
+
+gcloud run deploy pj-delivery-backend \
+  --source . \
+  --region southamerica-east1 \
+  --allow-unauthenticated \
+  --service-account="$RUN_SERVICE_ACCOUNT" \
+  --set-env-vars="FIREBASE_PROJECT_ID=${PROJECT_ID},FIREBASE_WEB_API_KEY=${FIREBASE_WEB_API_KEY},STORE_NAME=PJ Delivery,TZ=America/Argentina/Cordoba"
+```
+
+Las variables de producción se administran en Cloud Run, nunca mediante `.env` ni archivos de cuenta de servicio dentro de la imagen. El Admin SDK utiliza automáticamente las credenciales de la cuenta asignada al servicio.
+
+Comprobar el backend usando la URL informada por el despliegue:
+
+```bash
+curl "https://URL_DEL_SERVICIO/api/health"
+```
+
+Debe responder `{"status":"ok"}`.
+
+### Publicar Firebase Hosting
+
+[`firebase.json`](./firebase.json) sirve `public/` desde Hosting y reescribe las demás rutas hacia `pj-delivery-backend` en `southamerica-east1`:
+
+```bash
+firebase deploy --only hosting
+```
+
+Si `southamerica-east1` no estuviera habilitada para el proyecto, desplegar Cloud Run en `us-central1` y cambiar también `hosting.rewrites[0].run.region` en `firebase.json`; ambos valores deben coincidir.
+
+Para versiones posteriores, repetir primero `gcloud run deploy ...` y luego `firebase deploy --only hosting` cuando hayan cambiado archivos del frontend o el rewrite.

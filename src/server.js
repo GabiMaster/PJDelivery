@@ -64,6 +64,7 @@ async function createOrder(user,input){
 async function api(req,res,url){
   if(req.method==='POST'&&url.pathname==='/api/auth/login'){const input=await body(req);return json(res,200,await signIn(input.email,input.password));}
   if(req.method==='GET'&&url.pathname==='/api/config')return json(res,200,{storeName,today:today(),firebaseConfigured:Boolean(apiKey)});
+  if(req.method==='GET'&&url.pathname==='/api/health')return json(res,200,{status:'ok'});
   const user=await authenticatedUser(req.headers.authorization);
   if(req.method==='GET'&&url.pathname==='/api/me')return json(res,200,user);
   if(req.method==='GET'&&url.pathname==='/api/cashiers'){requireAdmin(user);return json(res,200,docs(await firestore.collection('cashiers').get()).filter(x=>x.active!==false));}
