@@ -22,3 +22,12 @@ export function snapshotItems(items) {
     isCustom: !item.menuItemId
   }));
 }
+
+export function resolveDeliveryDistance(input, kilometersToBlocks) {
+  const distance = Number(input.distance);
+  if (!Number.isFinite(distance) || distance < 0) throw new TypeError('Distancia inválida');
+  const distanceBlocks = input.distanceUnit === 'km' ? kilometersToBlocks(distance) : distance;
+  const distanceSource = input.distanceSource === 'auto' ? 'auto' : 'manual';
+  if (distanceSource === 'auto' && input.distanceConfidence !== 'high') throw new TypeError('El cálculo automático no tiene confianza alta');
+  return { distanceBlocks, distanceSource, distanceConfidence: distanceSource === 'auto' ? 'high' : null };
+}

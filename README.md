@@ -11,6 +11,8 @@ Sistema web para pedidos, carta, deliveries y cierres personales de caja. Usa Fi
 - Un pedido contiene varios ítems con cantidad, más ítems libres excepcionales.
 - Nombre, precio unitario, cantidad y subtotal quedan copiados en el pedido: cambiar la carta no altera ventas históricas.
 - El envío, la separación caja/delivery y los PDF conservan la lógica original.
+- Para envíos, Google Maps propone la distancia real por calle; el cajero siempre puede reemplazarla manualmente.
+- La carta pública muestra precios e ingredientes activos sin requerir login.
 
 ## Configuración de Firebase
 
@@ -36,7 +38,7 @@ Para el dueño usar `"role": "admin"`. El documento debe usar exactamente el UID
 
 ```bash
 export FIREBASE_PROJECT_ID="mi-proyecto"
-export FIREBASE_WEB_API_KEY="api-key-de-la-app-web"
+export FIREBASE_WEB_API_KEY="API_KEY_DE_FIREBASE"
 export GOOGLE_APPLICATION_CREDENTIALS="/ruta/segura/service-account.json"
 npm install
 npm start
@@ -56,7 +58,7 @@ En otra terminal:
 
 ```bash
 export FIREBASE_PROJECT_ID="pj-delivery-local"
-export FIREBASE_WEB_API_KEY="cualquier-valor-no-vacio"
+export FIREBASE_WEB_API_KEY="API_KEY_DE_FIREBASE"
 export FIREBASE_AUTH_EMULATOR_HOST="127.0.0.1:9099"
 export FIRESTORE_EMULATOR_HOST="127.0.0.1:8080"
 npm start
@@ -83,7 +85,9 @@ Colecciones: `cashiers`, `couriers`, `menuItems`, `orders` y `cashClosures`. SQL
 npm test
 ```
 
-Cubren la tarifa original, el cálculo del monto desde ítems y la restricción que impide a un cajero consultar la caja de otro.
+Cubren la tarifa vigente, el cálculo del monto desde ítems y la restricción que impide a un cajero consultar la caja de otro.
+
+La tarifa de envío es de **$1.700 hasta 10 cuadras**. Para distancias mayores se suman **$120 por cada cuadra que exceda las primeras 10**. Por ejemplo, 51 cuadras cuestan `$1.700 + 41 × $120 = $6.620`.
 
 ## Carga inicial de la carta
 
@@ -111,14 +115,16 @@ Requisitos:
 ```bash
 gcloud auth login
 firebase login
-gcloud config set project PROJECT_ID_REAL
-firebase use --add
+gcloud config set project pjdelivery-3d5de
+firebase use pjdelivery-3d5de
 
 gcloud services enable \
   run.googleapis.com \
   cloudbuild.googleapis.com \
   artifactregistry.googleapis.com \
-  firestore.googleapis.com
+  firestore.googleapis.com \
+  geocoding-backend.googleapis.com \
+  routes.googleapis.com
 ```
 
 ### Cuenta de servicio
@@ -126,7 +132,7 @@ gcloud services enable \
 Se recomienda una identidad dedicada para el backend:
 
 ```bash
-export PROJECT_ID="PROJECT_ID_REAL"
+export PROJECT_ID="pjdelivery-3d5de"
 export RUN_SERVICE_ACCOUNT="pj-delivery-runner@${PROJECT_ID}.iam.gserviceaccount.com"
 
 gcloud iam service-accounts create pj-delivery-runner \
@@ -151,13 +157,20 @@ Obtener la API key de la aplicación web desde Firebase Console → Configuraci�
 
 ```bash
 export FIREBASE_WEB_API_KEY="API_KEY_DE_FIREBASE"
+export GOOGLE_MAPS_API_KEY="API_KEY_EXCLUSIVA_DE_PRODUCCION"
+export STORE_LAT="-27.47792347295175"
+export STORE_LNG="-58.98525095941216"
+export ADDRESS_CONTEXT="Resistencia, Chaco, Argentina"
+export PROJECT_ID="pjdelivery-3d5de"
+export RUN_SERVICE_ACCOUNT="pj-delivery-runner@pjdelivery-3d5de.iam.gserviceaccount.com"
 
 gcloud run deploy pj-delivery-backend \
   --source . \
+  --project pjdelivery-3d5de \
   --region southamerica-east1 \
   --allow-unauthenticated \
   --service-account="$RUN_SERVICE_ACCOUNT" \
-  --set-env-vars="FIREBASE_PROJECT_ID=${PROJECT_ID},FIREBASE_WEB_API_KEY=${FIREBASE_WEB_API_KEY},STORE_NAME=PJ Delivery,TZ=America/Argentina/Cordoba"
+  --set-env-vars="^@^FIREBASE_PROJECT_ID=${PROJECT_ID}@FIREBASE_WEB_API_KEY=${FIREBASE_WEB_API_KEY}@GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}@STORE_LAT=${STORE_LAT}@STORE_LNG=${STORE_LNG}@ADDRESS_CONTEXT=${ADDRESS_CONTEXT}@TRAVEL_MODE=TWO_WHEELER@STORE_NAME=PJ Delivery@TZ=America/Argentina/Cordoba"
 ```
 
 Las variables de producción se administran en Cloud Run, nunca mediante `.env` ni archivos de cuenta de servicio dentro de la imagen. El Admin SDK utiliza automáticamente las credenciales de la cuenta asignada al servicio.
@@ -175,9 +188,54 @@ Debe responder `{"status":"ok"}`.
 [`firebase.json`](./firebase.json) sirve `public/` desde Hosting y reescribe las demás rutas hacia `pj-delivery-backend` en `southamerica-east1`:
 
 ```bash
-firebase deploy --only hosting
+firebase deploy --only hosting --project pjdelivery-3d5de
 ```
 
 Si `southamerica-east1` no estuviera habilitada para el proyecto, desplegar Cloud Run en `us-central1` y cambiar también `hosting.rewrites[0].run.region` en `firebase.json`; ambos valores deben coincidir.
 
 Para versiones posteriores, repetir primero `gcloud run deploy ...` y luego `firebase deploy --only hosting` cuando hayan cambiado archivos del frontend o el rewrite.
+
+## Distancia automática de envíos
+
+El backend es el único componente que conoce `GOOGLE_MAPS_API_KEY` y llama a Geocoding API y Routes API. El navegador recibe metros, cuadras, confianza y tarifa, pero nunca la credencial. La key de producción debe ser distinta de la POC y estar restringida exclusivamente a esas dos APIs.
+
+Flujo operativo:
+
+- Una dirección precisa calcula automáticamente la ruta y el envío.
+- Una coincidencia parcial, aproximada, error de red o cuota agotada habilita inmediatamente la carga manual.
+- El cajero puede elegir “Ingresar distancia manualmente” antes o después del cálculo.
+- Cada pedido guarda `distanceSource` (`auto` o `manual`) y, para cálculos automáticos, `distanceConfidence: high`.
+- Los pedidos históricos sin estos campos siguen siendo compatibles.
+
+Variables requeridas en Cloud Run: `GOOGLE_MAPS_API_KEY`, `STORE_LAT`, `STORE_LNG`, `ADDRESS_CONTEXT` y `TRAVEL_MODE`. Para desarrollo local pueden agregarse al `.env` usando [.env.example](./.env.example) como referencia.
+
+### Control de costos aprobado para producción
+
+Valores definidos el **2026-08-28** para un pico esperado de 50 a 100 envíos diarios:
+
+| Control                             |               Valor |
+| ----------------------------------- | ------------------: |
+| Cuota diaria Geocoding API          | 300 solicitudes/día |
+| Cuota diaria Routes `ComputeRoutes` | 300 solicitudes/día |
+| Alerta de presupuesto               |              USD 10 |
+| Umbrales de aviso                   |     50%, 90% y 100% |
+
+Las cuotas deben configurarse en Google Maps Platform → Quotas y la alerta en Billing → Budgets & alerts. La alerta no detiene el servicio. Estos valores deben revisarse si cambia significativamente el volumen de pedidos.
+
+## Catálogo público
+
+La carta para clientes está disponible sin autenticación en:
+
+```text
+https://pjdelivery-3d5de.web.app/carta-publica
+```
+
+También se puede usar `/carta-publica` bajo un dominio personalizado. La página muestra únicamente productos activos con nombre, categoría, ingredientes y precio; no expone pedidos, cierres, cajeros, teléfonos ni deliveries. El backend conserva la consulta de Firestore en memoria durante cinco minutos y responde con `Cache-Control: public, max-age=300`.
+
+Los ingredientes se actualizan de forma idempotente con:
+
+```bash
+npm run seed:menu
+```
+
+Para publicar cambios del catálogo, desplegar primero Cloud Run y luego Hosting usando los comandos completos de la sección anterior.

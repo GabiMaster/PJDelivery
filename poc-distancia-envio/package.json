@@ -1,0 +1,12 @@
+{
+  "name": "pj-delivery-poc-distancia",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "cli": "node --env-file-if-exists=.env src/cli.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=22" }
+}

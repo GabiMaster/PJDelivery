@@ -1,4 +1,4 @@
-export const BASE_RATE = 1800;
+export const BASE_RATE = 1700;
 export const EXTRA_BLOCK_RATE = 120;
 
 export function kilometersToBlocks(kilometers) {
@@ -17,8 +17,5 @@ export function calculateShippingCost(blocks) {
   if (distance <= 10) return BASE_RATE;
 
   const remaining = distance - 10;
-  const sectionPrice = remaining <= 10
-    ? BASE_RATE
-    : BASE_RATE + (remaining - 10) * EXTRA_BLOCK_RATE;
-  return Math.round(sectionPrice + BASE_RATE);
+  return Math.round(BASE_RATE + remaining * EXTRA_BLOCK_RATE);
 }

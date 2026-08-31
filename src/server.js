@@ -4,8 +4,10 @@ import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authenticatedUser, firestore } from './firebase.js';
 import { orderScope, requireAdmin, requireCashier } from './access.js';
-import { calculateItemsTotal, snapshotItems } from './order.js';
+import { calculateItemsTotal, resolveDeliveryDistance, snapshotItems } from './order.js';
 import { calculateShippingCost, kilometersToBlocks } from './shipping.js';
+import { calculateShippingQuote } from './distance.js';
+import { createPublicMenuCache, servePublicMenu } from './public-menu.js';
 import { closurePdf } from './pdf.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -14,10 +16,12 @@ const port = Number(process.env.PORT || 3000);
 const storeName = process.env.STORE_NAME || 'PJ Delivery';
 const apiKey = process.env.FIREBASE_WEB_API_KEY || '';
 const timeZone = process.env.TZ || 'America/Argentina/Cordoba';
+const publicRoutes = new Set(['/api/auth/login', '/api/config', '/api/health', '/carta-publica']);
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
 const json = (res, status, data) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
 async function body(req) { const chunks=[]; for await (const chunk of req) chunks.push(chunk); if (!chunks.length) return {}; try{return JSON.parse(Buffer.concat(chunks));}catch{throw Object.assign(new Error('JSON inválido'),{status:400});} }
 const docs = snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+const getPublicMenu = createPublicMenuCache(async () => docs(await firestore.collection('menuItems').where('active','==',true).get()));
 
 async function signIn(email, password) {
   if (!apiKey) throw Object.assign(new Error('Falta configurar FIREBASE_WEB_API_KEY'), { status: 503 });
@@ -54,10 +58,10 @@ async function preview(user, date, requestedUid) {
 async function createOrder(user,input){
   requireCashier(user);
   if(!['cash','transfer'].includes(input.paymentMethod)||!['pickup','delivery'].includes(input.deliveryMethod))throw Object.assign(new Error('Método de pago o entrega inválido'),{status:400});
-  const items=snapshotItems(input.items),orderAmount=calculateItemsTotal(items);let address=null,phone=null,distanceBlocks=null,shippingCost=0,courierId=null,courierName=null;
-  if(input.deliveryMethod==='delivery'){if(!String(input.address||'').trim()||!String(input.phone||'').trim())throw Object.assign(new Error('Dirección y teléfono son obligatorios'),{status:400});const distance=Number(input.distance);if(!Number.isFinite(distance)||distance<0)throw Object.assign(new Error('Distancia inválida'),{status:400});distanceBlocks=input.distanceUnit==='km'?kilometersToBlocks(distance):distance;shippingCost=calculateShippingCost(distanceBlocks);address=input.address.trim();phone=input.phone.trim();if(input.courierId){const courier=await firestore.collection('couriers').doc(input.courierId).get();if(!courier.exists||courier.data().active===false)throw Object.assign(new Error('Delivery inválido'),{status:400});courierId=courier.id;courierName=courier.data().name;}}
+  const items=snapshotItems(input.items),orderAmount=calculateItemsTotal(items);let address=null,phone=null,distanceBlocks=null,distanceSource=null,distanceConfidence=null,shippingCost=0,courierId=null,courierName=null;
+  if(input.deliveryMethod==='delivery'){if(!String(input.address||'').trim()||!String(input.phone||'').trim())throw Object.assign(new Error('Dirección y teléfono son obligatorios'),{status:400});try{({distanceBlocks,distanceSource,distanceConfidence}=resolveDeliveryDistance(input,kilometersToBlocks));}catch(error){error.status=400;throw error}shippingCost=calculateShippingCost(distanceBlocks);address=input.address.trim();phone=input.phone.trim();if(input.courierId){const courier=await firestore.collection('couriers').doc(input.courierId).get();if(!courier.exists||courier.data().active===false)throw Object.assign(new Error('Delivery inválido'),{status:400});courierId=courier.id;courierName=courier.data().name;}}
   const businessDate=input.businessDate||today();if(!/^\d{4}-\d{2}-\d{2}$/.test(businessDate))throw Object.assign(new Error('Fecha inválida'),{status:400});
-  const data={items,description:items.map(x=>`${x.quantity}× ${x.name}`).join(', '),orderAmount,paymentMethod:input.paymentMethod,deliveryMethod:input.deliveryMethod,address,phone,distanceBlocks,shippingCost,totalAmount:orderAmount+shippingCost,cashierUid:user.uid,cashierName:user.name,courierId,courierName,businessDate,createdAt:new Date().toISOString(),closedOn:null};
+  const data={items,description:items.map(x=>`${x.quantity}× ${x.name}`).join(', '),orderAmount,paymentMethod:input.paymentMethod,deliveryMethod:input.deliveryMethod,address,phone,distanceBlocks,distanceSource,distanceConfidence,shippingCost,totalAmount:orderAmount+shippingCost,cashierUid:user.uid,cashierName:user.name,courierId,courierName,businessDate,createdAt:new Date().toISOString(),closedOn:null};
   const ref=await firestore.collection('orders').add(data);return{id:ref.id,...data};
 }
 
@@ -71,11 +75,12 @@ async function api(req,res,url){
   if(req.method==='GET'&&url.pathname==='/api/couriers')return json(res,200,docs(await firestore.collection('couriers').get()).filter(x=>x.active!==false).sort((a,b)=>a.name.localeCompare(b.name)));
   if(req.method==='POST'&&url.pathname==='/api/couriers'){requireAdmin(user);const input=await body(req),name=String(input.name||'').trim();if(!name)throw Object.assign(new Error('Ingresá un nombre'),{status:400});const ref=await firestore.collection('couriers').add({name,active:true,createdAt:new Date().toISOString()});return json(res,201,{id:ref.id,name,active:true});}
   if(req.method==='GET'&&url.pathname==='/api/menu') {const all=url.searchParams.get('all')==='1';if(all)requireAdmin(user);let rows=docs(await firestore.collection('menuItems').get());if(!all)rows=rows.filter(x=>x.active!==false);return json(res,200,rows.sort((a,b)=>a.name.localeCompare(b.name)));}
-  if(req.method==='POST'&&url.pathname==='/api/menu'){requireAdmin(user);const input=await body(req),name=String(input.name||'').trim(),price=Number(input.price);if(!name||!Number.isInteger(price)||price<0||!['food','promo'].includes(input.type))throw Object.assign(new Error('Datos de carta inválidos'),{status:400});const data={name,price,type:input.type,active:true,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};const ref=await firestore.collection('menuItems').add(data);return json(res,201,{id:ref.id,...data});}
+  if(req.method==='POST'&&url.pathname==='/api/menu'){requireAdmin(user);const input=await body(req),name=String(input.name||'').trim(),price=Number(input.price),category=String(input.category||'Otros').trim(),ingredients=String(input.ingredients||'').trim()||null;if(!name||!category||!Number.isInteger(price)||price<0||!['food','promo'].includes(input.type))throw Object.assign(new Error('Datos de carta inválidos'),{status:400});const data={name,price,type:input.type,category,ingredients,active:true,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};const ref=await firestore.collection('menuItems').add(data);return json(res,201,{id:ref.id,...data});}
   const menuMatch=url.pathname.match(/^\/api\/menu\/([^/]+)$/);
-  if(menuMatch&&req.method==='PATCH'){requireAdmin(user);const input=await body(req),ref=firestore.collection('menuItems').doc(menuMatch[1]),current=await ref.get();if(!current.exists)throw Object.assign(new Error('Ítem no encontrado'),{status:404});const update={updatedAt:new Date().toISOString()};if(input.name!==undefined)update.name=String(input.name).trim();if(input.price!==undefined)update.price=Number(input.price);if(input.type!==undefined)update.type=input.type;if(input.active!==undefined)update.active=Boolean(input.active);if((input.name!==undefined&&!update.name)||(update.price!==undefined&&(!Number.isInteger(update.price)||update.price<0))||(update.type&&!['food','promo'].includes(update.type)))throw Object.assign(new Error('Datos de carta inválidos'),{status:400});await ref.update(update);return json(res,200,{id:ref.id,...current.data(),...update});}
+  if(menuMatch&&req.method==='PATCH'){requireAdmin(user);const input=await body(req),ref=firestore.collection('menuItems').doc(menuMatch[1]),current=await ref.get();if(!current.exists)throw Object.assign(new Error('Ítem no encontrado'),{status:404});const update={updatedAt:new Date().toISOString()};if(input.name!==undefined)update.name=String(input.name).trim();if(input.price!==undefined)update.price=Number(input.price);if(input.type!==undefined)update.type=input.type;if(input.category!==undefined)update.category=String(input.category).trim();if(input.ingredients!==undefined)update.ingredients=String(input.ingredients).trim()||null;if(input.active!==undefined)update.active=Boolean(input.active);if((input.name!==undefined&&!update.name)||(input.category!==undefined&&!update.category)||(update.price!==undefined&&(!Number.isInteger(update.price)||update.price<0))||(update.type&&!['food','promo'].includes(update.type)))throw Object.assign(new Error('Datos de carta inválidos'),{status:400});await ref.update(update);return json(res,200,{id:ref.id,...current.data(),...update});}
   if(req.method==='GET'&&url.pathname==='/api/orders')return json(res,200,await listOrders(user,url.searchParams));
   if(req.method==='POST'&&url.pathname==='/api/orders')return json(res,201,await createOrder(user,await body(req)));
+  if(req.method==='POST'&&url.pathname==='/api/orders/calcular-envio'){requireCashier(user);const input=await body(req);return json(res,200,await calculateShippingQuote(input.address));}
   if(req.method==='GET'&&url.pathname==='/api/shipping'){const distance=Number(url.searchParams.get('distance')),blocks=url.searchParams.get('unit')==='km'?kilometersToBlocks(distance):distance;return json(res,200,{blocks,cost:calculateShippingCost(blocks)});}
   if(req.method==='GET'&&url.pathname==='/api/closures/preview')return json(res,200,await preview(user,url.searchParams.get('date')||today(),url.searchParams.get('cashierUid')));
   if(req.method==='GET'&&url.pathname==='/api/closures'){const scope=orderScope(user,url.searchParams.get('cashierUid'));let rows=docs(await firestore.collection('cashClosures').get());if(scope)rows=rows.filter(x=>x.cashierUid===scope);return json(res,200,rows.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));}
@@ -102,6 +107,8 @@ async function serveStatic(res, pathname) {
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    if (!publicRoutes.has(url.pathname) && !url.pathname.startsWith('/api/')) return await serveStatic(res, url.pathname);
+    if (req.method === 'GET' && url.pathname === '/carta-publica') return await servePublicMenu(res, getPublicMenu, storeName);
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
     return await serveStatic(res, url.pathname);
   } catch (error) {

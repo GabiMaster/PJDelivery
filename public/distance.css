@@ -1,0 +1,1 @@
+.distance-panel{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:8px}.distance-panel button{border:0;background:transparent;color:var(--green);padding:0;text-decoration:underline;cursor:pointer;font-weight:700}.distance-ok{color:#247146;font-weight:700}.distance-warning{color:#a06400;font-weight:700}.distance-loading{color:#52675b}

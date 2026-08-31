@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { firestore } from '../src/firebase.js';
+import { ingredientsFor } from '../src/menu-ingredients.js';
 
 const defaultFile = resolve(fileURLToPath(new URL('../../carta-seed.json', import.meta.url)));
 export const normalizeName = name => String(name).trim().normalize('NFKC').toLocaleLowerCase('es-AR');
@@ -21,7 +22,7 @@ export function validateMenuItems(value) {
     const key = normalizeName(name);
     if (names.has(key)) throw new Error(`Nombre duplicado en el archivo: "${name}"`);
     names.add(key);
-    return { name, price, type, category, active: raw.active !== false };
+    return { name, price, type, category, ingredients: raw.ingredients || ingredientsFor(name), active: raw.active !== false };
   });
 }
 
