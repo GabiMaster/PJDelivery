@@ -13,6 +13,9 @@ Sistema web para pedidos, carta, deliveries y cierres personales de caja. Usa Fi
 - El envío, la separación caja/delivery y los PDF conservan la lógica original.
 - Para envíos, Google Maps propone la distancia real por calle; el cajero siempre puede reemplazarla manualmente.
 - La carta pública muestra precios e ingredientes activos sin requerir login.
+- El tablero de la jornada actualiza cada siete segundos y organiza el flujo `recibido → en preparación → listo → entregado`.
+- Los pedidos recibidos pueden guardarse incompletos y editarse en cualquier estado; los datos obligatorios se validan al avanzar.
+- Los cierres incluyen rendición de deliveries, movimientos del fondo de vuelto y efectivo neto.
 
 ## Configuración de Firebase
 
@@ -77,7 +80,7 @@ El navegador solo utiliza la API del servidor. El backend verifica cada Firebase
 
 Las [reglas de Firestore](./firestore.rules) niegan todo acceso cliente porque el Admin SDK es el único intermediario autorizado.
 
-Colecciones: `cashiers`, `couriers`, `menuItems`, `orders` y `cashClosures`. SQLite ya no se utiliza y los datos de prueba anteriores no se migran.
+Colecciones: `cashiers`, `couriers`, `menuItems`, `orders`, `cashMovements`, `changeFundReimbursements`, `settings` y `cashClosures`. SQLite ya no se utiliza y los datos de prueba anteriores no se migran.
 
 ## Tests
 
@@ -85,13 +88,25 @@ Colecciones: `cashiers`, `couriers`, `menuItems`, `orders` y `cashClosures`. SQL
 npm test
 ```
 
-Cubren la tarifa vigente, el cálculo del monto desde ítems y la restricción que impide a un cajero consultar la caja de otro.
+Cubren la tarifa vigente, el cálculo del monto desde ítems, el flujo de estados, la liquidación de deliveries, el fondo de vuelto y la restricción que impide a un cajero consultar la caja de otro.
+
+## Tablero, rendiciones y fondo de vuelto
+
+Cada cajero ve únicamente sus pedidos activos del día. El administrador puede consultar el tablero de un cajero, pero no modificarlo. Los pedidos entregados o cancelados salen del tablero y siguen disponibles en el historial, con filtros por entrega, pago y delivery.
+
+El monto rendido por cada delivery es todo lo que recaudó en efectivo (pedido más envío). El cierre descuenta de ese monto su ganancia total por todos los envíos y muestra un único saldo neto: si es positivo queda en caja; si es negativo, caja debe pagarle su valor absoluto al delivery.
+
+El “total vendido en efectivo” se muestra únicamente como referencia. El efectivo neto físico se calcula sumando los retiros pagados en efectivo y el saldo neto de todos los deliveries, y restando los egresos permanentes. El `vuelto_cliente` sigue siendo neutro.
+
+Antes de reponer el fondo, el cierre muestra el efectivo físico que debería encontrarse en caja: retiros pagados en efectivo más los saldos netos de deliveries, sin descontar todavía ningún egreso. También informa el efectivo físico final luego de reintegrar al fondo tanto los egresos permanentes como los vueltos entregados a clientes.
+
+El fondo objetivo de vuelto es de **$100.000**, pero su saldo real queda persistido en `settings/changeFund` y no se reinicia entre jornadas o cierres. Cada retiro `permanente` o `vuelto_cliente` lo reduce atómicamente; cada reintegro registrado lo incrementa por el monto exacto. El vuelto entregado al cliente sigue siendo neutro en el efectivo neto.
 
 La tarifa de envío es de **$1.700 hasta 10 cuadras**. Para distancias mayores se suman **$120 por cada cuadra que exceda las primeras 10**. Por ejemplo, 51 cuadras cuestan `$1.700 + 41 × $120 = $6.620`.
 
 ## Carga inicial de la carta
 
-`scripts/seed-menu.js` valida y carga `carta-seed.json` en `menuItems`, conservando la categoría. Es idempotente: al volver a ejecutarlo actualiza los documentos con el mismo nombre en vez de duplicarlos.
+`scripts/seed-menu.js` valida y carga `carta-seed.json` en `menuItems`, conservando la categoría y completando `description` con los ingredientes conocidos. Es idempotente: al volver a ejecutarlo actualiza los documentos con el mismo nombre en vez de duplicarlos.
 
 El archivo se busca por defecto como `../carta-seed.json`. También se puede pasar otra ruta:
 

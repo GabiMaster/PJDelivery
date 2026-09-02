@@ -14,7 +14,6 @@ const recipes = [
   [/^Hamburguesa Mac$/, 'Pan de hamburguesa, medallón de carne, queso, paleta, lechuga, tomate, mayonesa, morrón, ají y cebolla caramelizada.'],
   [/^Hamburguesa Supermac$/, 'Pan de hamburguesa, medallón de carne, queso, paleta, lechuga, tomate, mayonesa, morrón, ají, cebolla caramelizada, queso cheddar y panceta.'],
   [/^Hamburguesa Cheddar y Panceta$/, 'Pan de hamburguesa, medallón de carne, queso cheddar, panceta, lechuga, tomate y mayonesa.'],
-  [/^Adicional Hamburguesa \(Medallón y Queso\)$/, 'Medallón de carne y queso.'],
   [/^Pizza Muzzarella -/, 'Salsa de tomate, muzzarella, aceitunas y orégano.'],
   [/^Pizza Muzzarella con Morrones -/, 'Salsa de tomate, muzzarella, morrón, aceitunas y orégano.'],
   [/^Pizza Muzzarella con Verdeo -/, 'Salsa de tomate, muzzarella, verdeo, orégano y cebolla de verdeo.'],

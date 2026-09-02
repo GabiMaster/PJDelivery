@@ -1,0 +1,22 @@
+.category-tabs { display:flex; gap:.5rem; overflow-x:auto; padding:.25rem 0 .75rem }
+.category-tab { white-space:nowrap; border-radius:999px; border-color:var(--category); color:var(--category) }
+.category-tab:nth-child(1) { --category:#a64b67 }.category-tab:nth-child(2) { --category:#bd6228 }
+.category-tab:nth-child(3) { --category:#347b52 }.category-tab:nth-child(4) { --category:#8d6330 }
+.category-tab:nth-child(5) { --category:#7a55a3 }.category-tab:nth-child(6) { --category:#307c83 }
+.category-tab:nth-child(7) { --category:#b24d40 }.category-tab:nth-child(8) { --category:#6d742d }
+.category-tab.active { background:var(--category); border-color:var(--category); color:#fff }
+#menu-results button span { display:flex; flex-direction:column; align-items:flex-start; gap:.2rem }
+#menu-results small { font-weight:400; color:#6d746e; text-align:left }
+.board-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:1rem }
+.order-card { background:#fff; border:1px solid #ddd; border-left:6px solid #8c9690; border-radius:14px; padding:1rem; box-shadow:0 5px 16px #1e352714 }
+.order-card.status-recibido { border-left-color:#377bb5 }.order-card.status-en_preparacion { border-left-color:#d59122 }.order-card.status-listo { border-left-color:#2f9254 }
+.order-card header,.order-card footer,.courier-row { display:flex; align-items:center; justify-content:space-between; gap:.6rem }
+.order-card header time { color:#69736d }.order-card footer { flex-wrap:wrap; margin-top:1rem }.card-total { font-size:1.3rem }
+.order-badges { display:flex; flex-wrap:wrap; gap:.35rem; margin:.65rem 0 }
+.order-badge,.status-pill { display:inline-flex; padding:.3rem .55rem; border-radius:999px; font-size:.78rem; font-weight:700 }
+.order-badge.delivery { background:#e5f2ff; color:#15558a }.order-badge.payment { background:#fff1cb; color:#76530a }.order-badge.courier { background:#e8e0fa; color:#513589 }
+.status-pill { background:#e7eee9; color:#264b39 }.courier-row { border-top:1px solid #e6e8e6; padding:.7rem 0 }.summary .wide { grid-column:1/-1 }
+.settlement > strong { text-align:right }.settlement-positive > strong { color:#276740 }.settlement-negative { background:#fff0f0; margin:0 -.7rem; padding:.8rem .7rem }.settlement-negative > strong { color:#a33 }
+.metric.before-replenishment { border:2px solid #d59122; background:#fff9e9 }
+.change-fund-panel { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; background:#e8f3eb; border-color:#8bb49a }.change-fund-panel small { color:#41634e }.change-fund-panel strong { color:#225c45; font-size:1.7rem }
+@media(max-width:650px) { .board-grid { grid-template-columns:1fr }.courier-row { align-items:flex-start; flex-direction:column } }

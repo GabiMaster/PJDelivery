@@ -22,7 +22,7 @@ export function validateMenuItems(value) {
     const key = normalizeName(name);
     if (names.has(key)) throw new Error(`Nombre duplicado en el archivo: "${name}"`);
     names.add(key);
-    return { name, price, type, category, ingredients: raw.ingredients || ingredientsFor(name), active: raw.active !== false };
+    return { name, price, type, category, description: raw.description || raw.ingredients || ingredientsFor(name), active: raw.active !== false };
   });
 }
 

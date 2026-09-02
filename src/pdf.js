@@ -7,6 +7,8 @@ function escapePdf(text) {
 export function closurePdf(closure) {
   const cashiers = JSON.parse(closure.cashiers_json);
   const couriers = JSON.parse(closure.couriers_json);
+  const cash = closure.cash || {};
+  const movements = closure.movements || [];
   const lines = [
     closure.store_name,
     `Cierre de caja - ${closure.business_date}`,
@@ -19,10 +21,22 @@ export function closurePdf(closure) {
     `Transferencias: ${money.format(closure.transfer_total)}`,
     `Total facturado: ${money.format(closure.grand_total)}`,
     `Corresponde a caja: ${money.format(closure.house_total)}`,
+    `Total vendido en efectivo (informativo): ${money.format(cash.grossCash || 0)}`,
+    `Efectivo en caja antes del reintegro: ${money.format(cash.cashBeforeReplenishment ?? cash.netCash ?? 0)}`,
+    `Egresos permanentes: ${money.format(cash.permanentExpenses || 0)}`,
+    `Efectivo neto: ${money.format(cash.netCash || 0)}`,
+    `Efectivo fisico final en caja: ${money.format(cash.physicalCashAfterReplenishment ?? cash.netCash ?? 0)}`,
+    `Fondo de vuelto objetivo/final: ${money.format(cash.projectedChangeFundFinal || 100000)}`,
+    `Saldo persistente del vuelto al cerrar: ${money.format(closure.changeFundBalance ?? cash.projectedChangeFundFinal ?? 100000)}`,
+    `Reposicion necesaria: ${money.format(cash.replenishmentNeeded || 0)}`,
     '',
     'Rendicion por delivery:',
-    ...couriers.map(item => `${item.name}: ${money.format(item.total)} (${item.orders} envios)`),
-    ...(couriers.length ? [] : ['Sin deliveries asignados'])
+    ...couriers.map(item => {const legacy=item.netToCash===undefined,rendered=legacy?(Number(item.toRender||item.total)||0)+(Number(item.earnings)||0)-(Number(item.toPay)||0):Number(item.toRender)||0,net=legacy?(Number(item.toRender||item.total)||0)-(Number(item.toPay)||0):Number(item.netToCash)||0;return `${item.name}: rinde ${money.format(rendered)}, ganancia ${money.format(item.earnings || 0)}, ${net < 0 ? `caja debe pagarle ${money.format(Math.abs(net))}` : `queda en caja ${money.format(net)}`} (${item.orders} envios)`}),
+    ...(couriers.length ? [] : ['Sin deliveries asignados']),
+    '',
+    'Retiros del fondo de vuelto:',
+    ...movements.map(item => `${item.type === 'permanente' ? 'Egreso' : 'Vuelto'}: ${item.note} - ${money.format(item.amount)}`),
+    ...(movements.length ? [] : ['Sin retiros registrados'])
   ];
   const commands = ['BT', '/F1 18 Tf', '50 790 Td'];
   lines.forEach((line, index) => {
