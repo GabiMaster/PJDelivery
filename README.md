@@ -94,6 +94,10 @@ Cubren la tarifa vigente, el cálculo del monto desde ítems, el flujo de estado
 
 Cada cajero ve únicamente sus pedidos activos del día. El administrador puede consultar el tablero de un cajero, pero no modificarlo. Los pedidos entregados o cancelados salen del tablero y siguen disponibles en el historial, con filtros por entrega, pago y delivery.
 
+La jornada actual del tablero se determina en el backend en cada actualización, por lo que al cambiar el día los pedidos anteriores desaparecen del tablero sin borrarse. El historial conserva todos los pedidos y permite avanzar o cancelar su estado, incluso en jornadas anteriores, aplicando las mismas validaciones de completitud.
+
+El tablero navega entre `Recibido`, `En preparación`, `Listo / En camino` y `Entregado`, mostrando una sola sección por vez. La búsqueda por cliente y los filtros de entrega, pago y delivery se combinan dentro de la sección activa; únicamente los cancelados quedan fuera del tablero.
+
 El monto rendido por cada delivery es todo lo que recaudó en efectivo (pedido más envío). El cierre descuenta de ese monto su ganancia total por todos los envíos y muestra un único saldo neto: si es positivo queda en caja; si es negativo, caja debe pagarle su valor absoluto al delivery.
 
 El “total vendido en efectivo” se muestra únicamente como referencia. El efectivo neto físico se calcula sumando los retiros pagados en efectivo y el saldo neto de todos los deliveries, y restando los egresos permanentes. El `vuelto_cliente` sigue siendo neutro.

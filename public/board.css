@@ -7,7 +7,8 @@
 .category-tab.active { background:var(--category); border-color:var(--category); color:#fff }
 #menu-results button span { display:flex; flex-direction:column; align-items:flex-start; gap:.2rem }
 #menu-results small { font-weight:400; color:#6d746e; text-align:left }
-.board-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:1rem }
+.board-status-tabs { display:flex; gap:.5rem; overflow-x:auto; margin-bottom:1rem }.board-status-tab { padding:.7rem 1rem; border:1px solid #aeb8b1; border-radius:999px; background:#fff; color:#415249; white-space:nowrap; cursor:pointer }.board-status-tab.active { background:#225c45; border-color:#225c45; color:#fff }.board-grid { display:block }.board-section > h3 { display:flex; justify-content:space-between; align-items:center }.board-section > h3 span { color:#68736c }.board-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:1rem }.board-empty { padding:2rem; text-align:center; background:#fff; border:1px dashed #c7cec9; border-radius:12px }
+.board-column { min-width:0 }.board-column > h3 { display:flex; justify-content:space-between; padding:.7rem .9rem; border-radius:10px; background:#e7ece8 }.board-column > h3 span { color:#637068 }.board-column .order-card { margin-bottom:.8rem }.column-empty { padding:.8rem; text-align:center }.history-actions { display:flex; gap:.35rem; white-space:normal }.history-actions button { padding:.45rem .6rem }
 .order-card { background:#fff; border:1px solid #ddd; border-left:6px solid #8c9690; border-radius:14px; padding:1rem; box-shadow:0 5px 16px #1e352714 }
 .order-card.status-recibido { border-left-color:#377bb5 }.order-card.status-en_preparacion { border-left-color:#d59122 }.order-card.status-listo { border-left-color:#2f9254 }
 .order-card header,.order-card footer,.courier-row { display:flex; align-items:center; justify-content:space-between; gap:.6rem }

@@ -10,7 +10,7 @@ import { calculateShippingQuote } from './distance.js';
 import { createPublicMenuCache, servePublicMenu } from './public-menu.js';
 import { closurePdf } from './pdf.js';
 import { CHANGE_FUND_TARGET, cashSummary, changeFundBalanceAfter, courierSettlements } from './accounting.js';
-import { isActiveOrder, validateStatusTransition } from './order-workflow.js';
+import { isActiveOrder, isBoardOrder, validateStatusTransition } from './order-workflow.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const publicDir = join(root, 'public');
@@ -44,11 +44,15 @@ async function listOrders(user, params) {
   let query = firestore.collection('orders');
   if (scope) query = query.where('cashierUid','==',scope);
   let rows = docs(await query.get());
-  if (params.get('date')) rows=rows.filter(x=>x.businessDate===params.get('date'));
+  if (params.get('current')==='1') rows=rows.filter(x=>x.businessDate===today());
+  else if (params.get('date')) rows=rows.filter(x=>x.businessDate===params.get('date'));
   if (params.get('courierId')) rows=rows.filter(x=>x.courierId===params.get('courierId'));
   if (params.get('deliveryMethod')) rows=rows.filter(x=>x.deliveryMethod===params.get('deliveryMethod'));
   if (params.get('paymentMethod')) rows=rows.filter(x=>x.paymentMethod===params.get('paymentMethod'));
+  if (params.get('status')) rows=rows.filter(x=>(x.status||'recibido')===params.get('status'));
+  if (params.get('customer')) {const customer=params.get('customer').trim().toLocaleLowerCase('es-AR');rows=rows.filter(x=>String(x.customerName||'').toLocaleLowerCase('es-AR').includes(customer));}
   if (params.get('active')==='1') rows=rows.filter(isActiveOrder);
+  if (params.get('board')==='1') rows=rows.filter(isBoardOrder);
   return rows.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,500);
 }
 

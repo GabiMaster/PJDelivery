@@ -22,4 +22,5 @@ export function validateStatusTransition(order,nextStatus){
 }
 
 export const isActiveOrder = order => !['entregado','cancelado'].includes(order.status||'recibido');
+export const isBoardOrder = order => (order.status||'recibido')!=='cancelado';
 export const nextOrderStatus = status => NEXT_STATUS[status]||null;
