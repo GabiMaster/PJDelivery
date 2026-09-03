@@ -16,6 +16,8 @@ Sistema web para pedidos, carta, deliveries y cierres personales de caja. Usa Fi
 - El tablero de la jornada actualiza cada siete segundos y organiza el flujo `recibido → en preparación → listo → entregado`.
 - Los pedidos recibidos pueden guardarse incompletos y editarse en cualquier estado; los datos obligatorios se validan al avanzar.
 - Los cierres incluyen rendición de deliveries, movimientos del fondo de vuelto y efectivo físico final.
+- El PDF de cierre presenta un encabezado con identidad visual y tablas diferenciadas para el resumen general, la rendición de deliveries y los movimientos del fondo de vuelto.
+- El total neto destacado en el PDF y en el historial suma el efectivo físico final más las transferencias; el efectivo bruto se conserva únicamente como referencia.
 
 ## Configuración de Firebase
 
