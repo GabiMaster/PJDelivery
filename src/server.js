@@ -18,7 +18,7 @@ const port = Number(process.env.PORT || 3000);
 const storeName = process.env.STORE_NAME || 'PJ Delivery';
 const apiKey = process.env.FIREBASE_WEB_API_KEY || '';
 const timeZone = process.env.TZ || 'America/Argentina/Cordoba';
-const publicRoutes = new Set(['/api/auth/login', '/api/config', '/api/health', '/carta-publica']);
+const publicRoutes = new Set(['/api/auth/login', '/api/auth/refresh', '/api/config', '/api/health', '/carta-publica']);
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
 const json = (res, status, data) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
 async function body(req) { const chunks=[]; for await (const chunk of req) chunks.push(chunk); if (!chunks.length) return {}; try{return JSON.parse(Buffer.concat(chunks));}catch{throw Object.assign(new Error('JSON inválido'),{status:400});} }
@@ -37,6 +37,15 @@ async function signIn(email, password) {
   const data = await response.json();
   if (!response.ok) throw Object.assign(new Error('Email o contraseña incorrectos'), { status: 401 });
   return { idToken:data.idToken, refreshToken:data.refreshToken, expiresIn:Number(data.expiresIn) };
+}
+
+async function refreshSession(refreshToken){
+  if(!apiKey)throw Object.assign(new Error('Falta configurar FIREBASE_WEB_API_KEY'),{status:503});
+  if(!refreshToken)throw Object.assign(new Error('La sesión no se puede renovar'),{status:401});
+  const secureTokenBase=process.env.FIREBASE_AUTH_EMULATOR_HOST?`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/securetoken.googleapis.com/v1`:'https://securetoken.googleapis.com/v1';
+  const response=await fetch(`${secureTokenBase}/token?key=${apiKey}`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'refresh_token',refresh_token:refreshToken})});
+  const data=await response.json();if(!response.ok)throw Object.assign(new Error('La sesión venció. Volvé a iniciar sesión'),{status:401});
+  return {idToken:data.id_token,refreshToken:data.refresh_token,expiresIn:Number(data.expires_in)};
 }
 
 async function listOrders(user, params) {
@@ -82,6 +91,7 @@ async function createOrder(user,input){
 
 async function api(req,res,url){
   if(req.method==='POST'&&url.pathname==='/api/auth/login'){const input=await body(req);return json(res,200,await signIn(input.email,input.password));}
+  if(req.method==='POST'&&url.pathname==='/api/auth/refresh'){const input=await body(req);return json(res,200,await refreshSession(input.refreshToken));}
   if(req.method==='GET'&&url.pathname==='/api/config')return json(res,200,{storeName,today:today(),firebaseConfigured:Boolean(apiKey)});
   if(req.method==='GET'&&url.pathname==='/api/health')return json(res,200,{status:'ok'});
   const user=await authenticatedUser(req.headers.authorization);

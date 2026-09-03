@@ -15,7 +15,7 @@ Sistema web para pedidos, carta, deliveries y cierres personales de caja. Usa Fi
 - La carta pública muestra precios e ingredientes activos sin requerir login.
 - El tablero de la jornada actualiza cada siete segundos y organiza el flujo `recibido → en preparación → listo → entregado`.
 - Los pedidos recibidos pueden guardarse incompletos y editarse en cualquier estado; los datos obligatorios se validan al avanzar.
-- Los cierres incluyen rendición de deliveries, movimientos del fondo de vuelto y efectivo neto.
+- Los cierres incluyen rendición de deliveries, movimientos del fondo de vuelto y efectivo físico final.
 
 ## Configuración de Firebase
 
@@ -48,6 +48,10 @@ npm start
 ```
 
 Abrir <http://localhost:3000>. Las claves privadas están ignoradas por Git.
+
+### Duración de la sesión
+
+Firebase emite ID tokens con una vigencia aproximada de una hora. Antes, el frontend guardaba uno de esos tokens en `sessionStorage` y lo reutilizaba indefinidamente, por lo que las operaciones comenzaban a fallar al vencer. Ahora la sesión se conserva en almacenamiento local y el frontend usa el refresh token para renovar el ID token antes de cada vencimiento. La renovación es transparente, no existe un cierre automático por inactividad y la sesión permanece activa durante toda la jornada hasta que el usuario pulse **Salir** o Firebase revoque sus credenciales.
 
 ## Emuladores para desarrollo
 
@@ -100,11 +104,11 @@ El tablero navega entre `Recibido`, `En preparación`, `Listo / En camino` y `En
 
 El monto rendido por cada delivery es todo lo que recaudó en efectivo (pedido más envío). El cierre descuenta de ese monto su ganancia total por todos los envíos y muestra un único saldo neto: si es positivo queda en caja; si es negativo, caja debe pagarle su valor absoluto al delivery.
 
-El “total vendido en efectivo” se muestra únicamente como referencia. El efectivo neto físico se calcula sumando los retiros pagados en efectivo y el saldo neto de todos los deliveries, y restando los egresos permanentes. El `vuelto_cliente` sigue siendo neutro.
+El “total vendido en efectivo” se muestra únicamente como referencia. El cierre usa como checkpoint el efectivo antes del reintegro y como resultado definitivo el efectivo físico final, que descuenta tanto los egresos permanentes como los vueltos entregados a clientes.
 
 Antes de reponer el fondo, el cierre muestra el efectivo físico que debería encontrarse en caja: retiros pagados en efectivo más los saldos netos de deliveries, sin descontar todavía ningún egreso. También informa el efectivo físico final luego de reintegrar al fondo tanto los egresos permanentes como los vueltos entregados a clientes.
 
-El fondo objetivo de vuelto es de **$100.000**, pero su saldo real queda persistido en `settings/changeFund` y no se reinicia entre jornadas o cierres. Cada retiro `permanente` o `vuelto_cliente` lo reduce atómicamente; cada reintegro registrado lo incrementa por el monto exacto. El vuelto entregado al cliente sigue siendo neutro en el efectivo neto.
+El saldo real del vuelto queda persistido en `settings/changeFund` y no se reinicia entre jornadas o cierres. Cada retiro `permanente` o `vuelto_cliente` lo reduce atómicamente y cada reintegro registrado lo incrementa por el monto exacto. La interfaz y los cierres muestran únicamente este saldo real, sin una referencia fija.
 
 La tarifa de envío es de **$1.700 hasta 10 cuadras**. Para distancias mayores se suman **$120 por cada cuadra que exceda las primeras 10**. Por ejemplo, 51 cuadras cuestan `$1.700 + 41 × $120 = $6.620`.
 

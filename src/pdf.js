@@ -9,6 +9,7 @@ export function closurePdf(closure) {
   const couriers = JSON.parse(closure.couriers_json);
   const cash = closure.cash || {};
   const movements = closure.movements || [];
+  const physicalCashFinal = cash.physicalCashAfterReplenishment ?? 0;
   const lines = [
     closure.store_name,
     `Cierre de caja - ${closure.business_date}`,
@@ -17,17 +18,15 @@ export function closurePdf(closure) {
     `Cajeros: ${cashiers.join(', ') || 'Sin actividad'}`,
     `Pedidos registrados: ${closure.order_count}`,
     '',
-    `Efectivo: ${money.format(closure.cash_total)}`,
     `Transferencias: ${money.format(closure.transfer_total)}`,
     `Total facturado: ${money.format(closure.grand_total)}`,
     `Corresponde a caja: ${money.format(closure.house_total)}`,
     `Total vendido en efectivo (informativo): ${money.format(cash.grossCash || 0)}`,
-    `Efectivo en caja antes del reintegro: ${money.format(cash.cashBeforeReplenishment ?? cash.netCash ?? 0)}`,
+    `Efectivo en caja antes del reintegro: ${money.format(cash.cashBeforeReplenishment ?? 0)}`,
     `Egresos permanentes: ${money.format(cash.permanentExpenses || 0)}`,
-    `Efectivo neto: ${money.format(cash.netCash || 0)}`,
-    `Efectivo fisico final en caja: ${money.format(cash.physicalCashAfterReplenishment ?? cash.netCash ?? 0)}`,
-    `Fondo de vuelto objetivo/final: ${money.format(cash.projectedChangeFundFinal || 100000)}`,
-    `Saldo persistente del vuelto al cerrar: ${money.format(closure.changeFundBalance ?? cash.projectedChangeFundFinal ?? 100000)}`,
+    `Egresos por vuelto a clientes: ${money.format(cash.customerChange || 0)}`,
+    `Efectivo fisico final en caja: ${money.format(physicalCashFinal)}`,
+    ...(closure.changeFundBalance != null ? [`Saldo real del vuelto al cerrar: ${money.format(closure.changeFundBalance)}`] : []),
     `Reposicion necesaria: ${money.format(cash.replenishmentNeeded || 0)}`,
     '',
     'Rendicion por delivery:',

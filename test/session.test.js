@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {AUTH_STORAGE_KEY,clearAuthSession,loadAuthSession,saveAuthSession,shouldRefreshToken} from '../public/session.js';
+
+function memoryStorage(){const values=new Map();return {getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key),values}}
+test('persiste y renueva la sesión durante más de cinco horas simuladas',()=>{const storage=memoryStorage(),start=1_000_000;let session=saveAuthSession({idToken:'id-0',refreshToken:'refresh-0',expiresIn:3600},storage,start);assert.deepEqual(loadAuthSession(storage),session);for(let hour=1;hour<=5;hour++){const now=start+hour*59*60_000;assert.equal(shouldRefreshToken(session,now),true);session=saveAuthSession({idToken:`id-${hour}`,refreshToken:`refresh-${hour}`,expiresIn:3600},storage,now);assert.equal(shouldRefreshToken(session,now),false)}assert.equal(loadAuthSession(storage).idToken,'id-5');clearAuthSession(storage);assert.equal(storage.getItem(AUTH_STORAGE_KEY),null)});
+test('solicita renovación antes de que venza el ID token',()=>{assert.equal(shouldRefreshToken({expiresAt:100_000},39_999),false);assert.equal(shouldRefreshToken({expiresAt:100_000},40_000),true)});

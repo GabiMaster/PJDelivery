@@ -21,6 +21,6 @@ export function cashSummary(orders,movements){
   const permanentExpenses=movements.filter(x=>x.type==='permanente').reduce((sum,x)=>sum+(Number(x.amount)||0),0);
   const customerChange=movements.filter(x=>x.type==='vuelto_cliente').reduce((sum,x)=>sum+(Number(x.amount)||0),0);
   const totalWithdrawals=permanentExpenses+customerChange;
-  const cashBeforeReplenishment=pickupCash+courierNetCash,netCash=cashBeforeReplenishment-permanentExpenses,physicalCashAfterReplenishment=netCash-customerChange;
-  return {grossCash,pickupCash,courierNetCash,permanentExpenses,customerChange,cashBeforeReplenishment,netCash,physicalCashAfterReplenishment,changeFundTarget:CHANGE_FUND_TARGET,totalWithdrawals,changeFundBeforeReplenishment:CHANGE_FUND_TARGET-totalWithdrawals,replenishmentNeeded:totalWithdrawals,projectedChangeFundFinal:CHANGE_FUND_TARGET};
+  const cashBeforeReplenishment=pickupCash+courierNetCash,physicalCashAfterReplenishment=cashBeforeReplenishment-permanentExpenses-customerChange;
+  return {grossCash,pickupCash,courierNetCash,permanentExpenses,customerChange,cashBeforeReplenishment,physicalCashAfterReplenishment,totalWithdrawals,replenishmentNeeded:totalWithdrawals};
 }
